@@ -102,12 +102,14 @@ Script location: `~/lerobot/palm_track.py`
 - [ ] Scripted waypoint fallback
 
 ### Track B — Voice + Gemini Vision
-- [ ] `sparky.py` — ElevenLabs + Kokoro + Piper TTS chain
-- [ ] `gemini_vision.py` — identify() + tutor() with streaming
-- [ ] ElevenLabs API key setup
-- [ ] Gemini API key setup (aistudio.google.com)
-- [ ] Kokoro model download
-- [ ] Ollama LLaVA fallback pull
+- [x] `sparky.py` — ElevenLabs + Kokoro + Piper TTS chain
+- [x] `gemini_vision.py` — identify() + tutor() with streaming
+- [x] `voice.py` — faster-whisper STT + Ollama llama3.2:3b intent routing
+- [x] `main.py` — ModeSwitcher stub (IDENTIFY + TUTOR functional)
+- [x] ElevenLabs API key setup
+- [x] Gemini API key setup (aistudio.google.com)
+- [x] Kokoro model download
+- [x] Ollama LLaVA fallback pull
 
 ### Track C — Vision
 - [ ] `vision.py` — MediaPipe face detection on side camera

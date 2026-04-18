@@ -8,8 +8,8 @@ FOLLOWER_PORT = "/dev/ttyACM2"   # SO-101 Follower — 12V 8A
 ARDUINO_PORT  = "/dev/ttyUSB0"   # Arduino OLED
 
 # Cameras
-CAMERA_TOP  = "/dev/video4"  # overhead, 1920×1080 @ 30fps — GeminiVision + ACT
-CAMERA_SIDE = 2              # forward-facing — MediaPipe face/hand tracking
+CAMERA_TOP  = 1  # overhead, 1920×1080 @ 30fps — GeminiVision + ACT
+CAMERA_SIDE = 0  # forward-facing — MediaPipe face/hand tracking
 
 # API keys (set these in ~/.bashrc before running)
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")

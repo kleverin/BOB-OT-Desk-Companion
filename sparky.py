@@ -36,8 +36,10 @@ def _generate_thinking_beep(sr: int = 22050) -> np.ndarray:
     t = np.linspace(0, 0.12, int(sr * 0.12))
     return (np.sin(2 * np.pi * 660 * t) * np.exp(-t * 15) * 0.25).astype(np.float32)
 
+SPEAKER_DEVICE = 5  # amd-soundwire hw:1,2 — laptop speaker
+
 def play_audio(audio: np.ndarray, sample_rate: int = 22050):
-    sd.play(audio, samplerate=sample_rate)
+    sd.play(audio, samplerate=sample_rate, device=SPEAKER_DEVICE)
     sd.wait()
 
 
@@ -48,7 +50,7 @@ class SparkyVoice:
     All output passes through the robot audio effect.
     """
 
-    SAMPLE_RATE = 22050
+    SAMPLE_RATE = 48000
     ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"  # Aria
 
     def __init__(self):
@@ -71,7 +73,7 @@ class SparkyVoice:
         if not self.elevenlabs_available:
             try:
                 from kokoro_onnx import Kokoro
-                self._kokoro = Kokoro("kokoro-v0_19.onnx", "voices.bin")
+                self._kokoro = Kokoro("kokoro.onnx", "voices/af_sky.bin")
                 self.kokoro_available = True
                 print("[Sparky] Kokoro TTS ready ✓")
             except Exception as e:
@@ -147,6 +149,11 @@ class SparkyVoice:
             output_format="pcm_22050",
         )
         audio = np.frombuffer(b"".join(audio_bytes), dtype=np.int16).astype(np.float32) / 32768.0
+        # upsample 22050 → 48000 for laptop speaker
+        from scipy.signal import resample_poly
+        from math import gcd
+        g = gcd(48000, 22050)
+        audio = resample_poly(audio, 48000 // g, 22050 // g).astype(np.float32)
         audio = apply_robot_effect(audio, self.SAMPLE_RATE)
         play_audio(audio, self.SAMPLE_RATE)
 
