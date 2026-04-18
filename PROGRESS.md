@@ -1,6 +1,6 @@
 # BOB-OT Desk Companion — Project Progress Report
-**Date:** April 17, 2026  
-**Hackathon:** AMD StarkHacks  
+**Date:** April 18, 2026
+**Time:** 01:50 AM
 **Team:** kleverin/BOB-OT-Desk-Companion  
 **Hardware:** WowRobo SO-101 + AMD Ryzen AI 9 HX370 laptop (Ubuntu 24.04)
 
