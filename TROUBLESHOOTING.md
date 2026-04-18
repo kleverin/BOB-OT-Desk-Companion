@@ -1,6 +1,7 @@
 # BOB-OT Desk Companion — Troubleshooting Guide
 **Hardware:** WowRobo SO-101 + AMD Ryzen AI 9 HX370 (Ubuntu 24.04)
 
+# USE THIS IN CASE SHIT GOES BAD BUT CLAUDE KNOWS IT ALL ANYWAY
 ---
 
 ## Quick session start checklist
