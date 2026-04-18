@@ -20,7 +20,7 @@ When shown a math problem, homework question, drawing, or any object:
 - Always end with an encouraging phrase like "You've got this!" or "Great question!"
 - If it is a math problem, walk through each step out loud like a teacher would."""
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-2.0-flash"
 
 
 class GeminiVision:
