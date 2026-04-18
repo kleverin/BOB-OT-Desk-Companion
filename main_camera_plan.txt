@@ -1,0 +1,168 @@
+MAIN CAMERA PLAN
+
+PROJECT OVERVIEW
+The goal of this system is to build a robot arm vision pipeline centered on a main overhead camera and a wrist/end-effector camera. The overhead camera is the primary workspace perception camera. It observes the table, detects objects, and provides broad context for manipulation tasks. The wrist camera is used for close-up verification and detail capture during final approach and inspection. The system must support both manipulation mode and help mode. Manipulation mode is for detecting and localizing objects so the robot can carry out actions. Help mode is for capturing an image, combining it with a text question, sending the inputs to Gemini, and receiving a spoken response.
+
+HIGH-LEVEL SYSTEM MODES
+Idle Mode
+Idle mode is the default resting state. The system is waiting for a new command or mode selection. Vision processing can be paused or limited to a low-rate health check. Idle mode should still keep the main camera active and ready.
+
+Manipulation Mode
+Manipulation mode is the workhorse mode. The overhead camera observes the table, a local object detector identifies objects, and the pipeline produces object labels and positions. The system uses this information to decide what the robot should pick, move, or place.
+
+Help Mode
+Help mode is a separate reasoning mode. The system captures an image or images, accepts a text question from the user, and sends both to Gemini. Gemini returns a response that is converted to speech or printed. This mode is not primarily for robot motion, but for answering questions about the scene.
+
+Inspection/Close-Up Mode
+Inspection or close-up mode uses the wrist camera to verify a target object or inspect detail. It is a refinement mode after the overhead camera has selected a candidate. This mode can also be used manually for checklists and pre-grasp confirmation.
+
+Mode switching
+The vision pipeline will switch between modes based on the current task. For now, mode switching can be done manually or with text commands as a placeholder. This allows the system to be tested without the full planner. Later, a planner can automate mode transitions based on intent and robot state.
+
+PHASE 0 - CAMERA SETUP AND WORKSPACE CALIBRATION
+Before object localization is useful, the main camera must be mounted in a fixed position and pointed consistently at the workspace. This phase tests image quality and field of view. It also begins workspace calibration.
+
+This phase includes selecting the camera index, checking resolution and frame rate, defining the table or workspace region, and planning for later pixel-to-table coordinate mapping. The main camera should provide a stable feed of the work area, and the workspace should be clearly visible in the frame.
+
+Placeholder / workaround
+If full calibration is not ready yet, use image pixel coordinates only. Define a rough workspace crop manually and use it as the active processing region. This keeps the system moving while detailed mapping is developed.
+
+Deliverables
+- Stable main camera feed
+- Saved sample images from the overhead camera
+- Known camera index and capture settings
+- Rough workspace boundary in image coordinates
+
+PHASE 1 - LOCAL OBJECT DETECTION
+The first active perception step is detecting what objects are present in the workspace. For a command like "pick the ball and put it on the book", the system should detect both the ball and the book in the overhead image.
+
+This phase should run a local object detection model on the overhead image, detect multiple objects, and return labels, confidence scores, and bounding boxes. It should focus on common workspace objects first and be implemented locally without dependency on Gemini.
+
+Placeholder / workaround
+If the final detector is not ready, use a temporary general object detector. If that is not available either, simulate detections with a mock JSON file or hardcoded sample outputs. The goal is to have a consistent interface for detected object outputs.
+
+Deliverables
+- List of detected objects
+- Object labels
+- Bounding boxes in image coordinates
+
+PHASE 1.5 - LANGUAGE TO OBJECT GROUNDING
+Command understanding is different from detection. The system must map words from user commands to detected objects. For example, if the command says "ball" and "book", the detector output must be searched for those matching object labels.
+
+This phase should extract target nouns from commands, match them to detector labels, handle multiple matches, and eventually support disambiguation. The output should clearly identify the source object and the destination object for a pick-and-place instruction.
+
+Placeholder / workaround
+For now, use simple keyword matching between command nouns and detector labels. If there are multiple matches, choose the most confident detection or choose the largest visible detection as a temporary rule. This lets the robot proceed while a richer language grounding module is developed.
+
+Deliverables
+- Source object selected
+- Destination object selected
+- Matched objects linked to the command
+
+PHASE 2 - OBJECT LOCALIZATION ON THE TABLE
+Detection alone is not enough; the robot needs object position information. This phase converts object image positions into workspace or table coordinates.
+
+The detector gives 2D image coordinates. Later, calibration will convert those into real tabletop X,Y coordinates. For early testing, image center points are enough to estimate object location and support manipulator approach.
+
+Placeholder / workaround
+Until calibration code is ready, store the bounding-box center in pixel coordinates and use those as temporary target locations for visualization only. This prevents blocking the pipeline while the coordinate mapping is refined.
+
+Deliverables
+- Object center point
+- Estimated table location
+- Consistent coordinate format for later motion planning
+
+PHASE 2.5 - WRIST CAMERA REFINEMENT
+The overhead camera gets the robot close, but the wrist camera can improve final alignment. This phase is meant to verify the object is still present, refine the approach, and provide a better close-up view before grasping.
+
+Placeholder / workaround
+If wrist-camera alignment code is not ready, just save a close-up image from the wrist camera. Or use this phase only for manual inspection and testing. The goal is to have a wrist-camera step in the pipeline even if it is not fully automated yet.
+
+Deliverables
+- Close-up confirmation image
+- Optional refined target position
+- Pre-grasp verification step
+
+PHASE 3 - HELP MODE WITH GEMINI
+In Help Mode, the vision system is no longer doing manipulation-first reasoning. Instead it receives a text question, captures an image, sends the text and image to Gemini, receives a response, and converts the answer to speech.
+
+Help Mode can be about anything, not just homework. Examples include a worksheet, object explanation, electronics board, item on the table, or an unclear visual question.
+
+Placeholder / workaround
+If TTS is not ready, print the reply as text. If voice trigger is not ready, use text input to activate help mode. This keeps the multimodal help pipeline testable before the full voice interface exists.
+
+Deliverables
+- Captured help-mode image
+- Gemini request payload
+- Gemini response text
+- Spoken or printed answer
+
+PHASE 3.5 - DUAL-IMAGE HELP MODE
+This advanced version uses the main overhead image for context and the wrist camera for a close-up. The wrist camera should be moved to a safe inspection height, then a close-up image should be captured. Both images plus the user’s text question are sent to Gemini.
+
+This helps because the overhead image shows full context while the wrist image gives detail for text, diagrams, wiring, or PCB inspection.
+
+Placeholder / workaround
+If safe motion planning is not ready, manually trigger the wrist close-up capture. Or test with two static images first. The focus is on validating the combined multimodal request path before automating the wrist motion.
+
+Deliverables
+- Overhead context image
+- Wrist close-up image
+- Combined multimodal Gemini request
+- Improved answer quality for small details
+
+PLACEHOLDER STRATEGY WHILE OTHER TEAM MODULES ARE IN PROGRESS
+Incomplete modules should be mocked so the pipeline can still be tested end-to-end. Define clear temporary stubs for every unfinished subsystem with consistent inputs and outputs.
+
+Placeholder ideas:
+- Object detector output can be mocked with hardcoded labels, bounding boxes, and confidence scores.
+- Command parser output can be stubbed with extracted nouns and action types.
+- Coordinate localization output can be a bounding-box center in pixel space.
+- Wrist-camera inspection trigger can be a manual button or text command.
+- Gemini request/response can be simulated with canned answers or a local test string.
+- Text-to-speech output can be printed as text if voice synthesis is unavailable.
+
+These placeholders let the team build and verify the data flow while key algorithms are still under development.
+
+INTERFACE CONTRACTS BETWEEN PHASES
+Each phase should pass a clear output to the next phase.
+
+Phase 1 returns detected objects with labels, confidence scores, and bounding boxes. Phase 1.5 receives those detections plus a command and returns selected source and destination targets. Phase 2 receives the selected object and returns object location data, such as center points and preliminary workspace coordinates. Phase 3 receives a question and image and returns answer text and speech text. These interfaces should remain stable even if internal implementation changes later.
+
+TESTING PLAN
+Camera feed test
+Verify the main overhead camera feed is stable and frames are readable. Capture sample images and confirm the workspace region is visible.
+
+Object detection test
+Run the local detector on sample images. Check that object labels, scores, and bounding boxes are produced. Validate that common workspace objects appear in the output.
+
+Command grounding test
+Give a sample command and confirm the parser selects matching detected objects. Test keyword matching and the temporary rule for multiple matches.
+
+Pixel-center localization test
+Verify that the bounding-box centers are computed correctly in pixel coordinates. Confirm that these centers are saved in a consistent format.
+
+Help-mode image capture test
+Trigger help mode with text input. Confirm that an image is captured and a Gemini payload is produced. Validate that the reply is returned and printed or spoken.
+
+Dual-image Gemini test
+Capture both an overhead and wrist image for a single help request. Confirm the combined request structure is produced and that the response is returned correctly.
+
+Placeholders in testing
+Use mocked detector outputs, mocked grounding decisions, and mocked Gemini responses to validate the end-to-end flow before the real modules are ready. This allows the system to be tested even when individual subsystems are unfinished.
+
+RISKS AND LIMITATIONS
+Detection errors are expected in early stages, especially with small or partially occluded objects. Multiple similar objects can confuse the selector. Poor lighting can reduce detection accuracy and make the workspace harder to interpret. Lack of full calibration means the system may only use 2D image coordinates at first, which limits true spatial accuracy. Unclear Gemini image details may cause poor answers when text is too small or the scene is ambiguous. Wrist camera movement may not be automated yet, so close-up capture may remain manual for a while.
+
+These are expected early-stage engineering risks. The plan should accept them and use placeholders while the system matures.
+
+RECOMMENDED BUILD ORDER
+1. Phase 0 first: establish camera setup and workspace calibration. This reduces uncertainty and makes later perception work easier.
+2. Then Phase 1: implement local object detection. This gives the system its first active perception capability.
+3. Then Phase 1.5: add language-to-object grounding. This connects commands to detected objects.
+4. Then Phase 2: develop object localization on the table. This provides coordinates for motion planning.
+5. Then Phase 2.5: add wrist-camera refinement. This improves final approach and verification.
+6. Then Phase 3: build help mode with Gemini. This creates the question-answering path.
+7. Then Phase 3.5: expand to dual-image help mode. This enhances help quality with both overhead and close-up views.
+
+This order reduces complexity by establishing camera reliability first, then perception, then language grounding, and then assistance features. Placeholders allow each phase to be tested before the finished module is available.
