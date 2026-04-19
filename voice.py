@@ -18,12 +18,13 @@ Given a voice command, classify it into one of these modes:
 
 - wake: "hey wake up", "wake up", "are you there", "hello sparky", "you there", "hey sparky"
 - identify: ONLY pure visual description requests — "what do you see", "what's on my desk", "describe the desk", "look around", "take a look". No question word expected; just a scan/description.
-- tutor: ANY question about an object, topic, or problem — "can you see X", "tell me about X", "what is X", "how does X work", "explain X", "help me with X", "can you see [object]", "what is that [thing]", "is there a [thing]", "how do I solve", "teach me", "take a look at this problem", "look at this", "check this out". Use this whenever the person expects an explanation or answer, not just a visual scan.
+- tutor: Questions that REQUIRE the camera — "look at this", "check this problem", "can you see this", "what is this object", "take a look at this", "help me with this [physical thing in front of camera]". Only use when the question needs a visual.
+- knowledge: General knowledge questions that do NOT need the camera — "who is X", "what is X", "how does X work", "explain X", "what year is X", "tell me about X". Use when the answer comes from knowledge, not from looking at something.
 - track: "follow me", "watch me", "track me"
 - clean: "clean up", "tidy this", "clean my desk", "pick this up"
 - idle: "stop", "rest", "never mind", "that's enough", "quit", "exit"
 
-Key rule: if the command contains a question about a specific object or topic (even if it says "can you see"), use "tutor" with the full question as target.
+Key rule: if the question can be answered without a camera, use "knowledge". Only use "tutor" when the camera is needed.
 
 Respond with ONLY valid JSON, no explanation or markdown:
 {"mode": "<mode>", "target": "<full question text, or empty string>"}
@@ -134,7 +135,7 @@ class VoiceModule:
                 raw = raw.split("```")[1].lstrip("json").strip()
             intent = json.loads(raw)
             intent.setdefault("target", "")
-            if intent.get("mode") not in ("wake", "identify", "tutor", "track", "clean", "idle"):
+            if intent.get("mode") not in ("wake", "identify", "tutor", "knowledge", "track", "clean", "idle"):
                 intent["mode"] = "idle"
             return intent
         except Exception as e:

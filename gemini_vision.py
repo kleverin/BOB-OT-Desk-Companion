@@ -16,9 +16,12 @@ When shown a math problem, homework question, drawing, or any object:
 - Explain it step by step in simple, encouraging language.
 - Use short sentences. Never use jargon without explaining it first.
 - Never just give the answer — guide the child to figure it out themselves.
-- Keep your total response under 5 sentences so the child stays engaged.
+- Keep your total response to 2-3 sentences maximum. Be brief and punchy.
 - Always end with an encouraging phrase like "You've got this!" or "Great question!"
-- If it is a math problem, walk through each step out loud like a teacher would."""
+- If it is a math problem, walk through the first step only, then ask the child what comes next."""
+
+KNOWLEDGE_PROMPT = """You are Sparky, a friendly robot assistant. Answer the question briefly in 1-2 sentences max.
+Be conversational and fun. No lists, no long explanations."""
 
 MODEL = "gemini-2.5-flash"
 
@@ -167,6 +170,18 @@ class GeminiVision:
         except Exception as e:
             print(f"[GeminiVision] reply failed: {e}")
             yield "Keep going, you've got this!"
+
+    def ask_text(self, question: str):
+        """Answer a general knowledge question — no camera, no conversation history."""
+        prompt = KNOWLEDGE_PROMPT + f"\n\nQuestion: {question}"
+        try:
+            if self.gemini_available:
+                yield from self._stream_gemini(prompt, None)
+            else:
+                yield "I'm not sure about that one, but you can look it up together!"
+        except Exception as e:
+            print(f"[GeminiVision] ask_text failed: {e}")
+            yield "Hmm, I had trouble with that. Try asking again!"
 
     def clear_history(self):
         self.conversation_history.clear()

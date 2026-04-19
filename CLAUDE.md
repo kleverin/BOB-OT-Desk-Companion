@@ -1,105 +1,177 @@
-# BOB-OT Desk Companion
+# CLAUDE.md
 
-Interactive tabletop robot companion for children built on a WowRobo SO-101 arm, designed for the AMD StarkHacks hackathon. Integrates voice, vision-language AI, and teleoperative arm control into a six-mode desk assistant ("Sparky").
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Companion library:** `/home/aup/lerobot` (LeRobot v0.4.1) — all arm control and camera abstraction flows through it.
+---
 
-## Tech Stack
+## Project: Sparky — AI Desk Companion
 
-| Layer | Technology |
-|---|---|
-| Language | Python 3.10.20 |
-| Arm control | LeRobot 0.4.1 (`SO101Follower`, `SO101Leader`) |
-| ML runtime | PyTorch 2.7.1+rocm6.3 (AMD ROCm iGPU) |
-| Vision-language | Gemini 2.0 Flash (primary), LLaVA via Ollama (offline fallback) |
-| Object detection | YOLO11n (ultralytics) |
-| Hand/face tracking | MediaPipe 0.10.9 |
-| STT | faster-whisper |
-| TTS chain | ElevenLabs → Kokoro-ONNX → Piper |
-| Local LLM | Ollama (llava, llama3.2:3b) |
-| OLED display | Arduino + SSD1306 via PySerial |
+A voice-controlled robotic desk companion for children built on a WowRobo SO-101 arm. Sparky tracks faces, tutors kids by looking at their homework through a camera, and responds to voice commands. Built for the AMD StarkHacks hackathon. The robot character is named **Sparky**; the repo is **BOB-OT**.
 
-## Project Structure
-
-```
-BOB-OT-Desk-Companion/
-├── main.py            # ModeSwitcher state machine — entry point
-├── arm.py             # LeRobot SO101Follower wrapper + ACT inference
-├── voice.py           # faster-whisper STT + Ollama intent routing
-├── vision.py          # YOLO detection + MediaPipe face/hand tracking
-├── eyes.py            # Arduino serial controller for OLED expression
-├── sparky.py          # TTS abstraction (ElevenLabs → Kokoro → Piper)
-├── gemini_vision.py   # Gemini 2.0 Flash API + LLaVA fallback
-├── config.py          # Global constants: ports, device paths, API keys
-├── arduino/
-│   └── eyes_sketch/eyes_sketch.ino
-├── desk_companion_final.md   # Hardware pinouts, mode specs, full setup
-├── PROGRESS.md               # Live hackathon status and TODOs
-└── TROUBLESHOOTING.md        # Port mapping, quick-start checklist
-```
-
-**Prototype (in lerobot repo):** `~/lerobot/palm_track.py` — MediaPipe hand → arm tracking proof-of-concept.
-
-## Six Robot Modes
-
-`IDLE → IDENTIFY → TRACK → CLEAN → TUTOR → LISTEN`
-
-Each mode maps to a distinct backend; `main.py` prevents concurrent execution.
+---
 
 ## Hardware
 
-- SO-101 Leader: `/dev/ttyACM1` (5V 6A — **do not swap power**)
-- SO-101 Follower: `/dev/ttyACM2` (12V 8A — **do not swap power**)
-- Arduino OLED: `/dev/ttyUSB0`
-- Camera TOP: `/dev/video4` (vision AI input)
-- Camera SIDE: face tracking input
+| Device | Port | Power |
+|---|---|---|
+| SO-101 Follower arm | `/dev/ttyACM1` | 12V 8A — **do not swap** |
+| SO-101 Leader arm | `/dev/ttyACM2` | 5V 6A — **do not swap** |
+| Arduino Nano (OLED) | `/dev/ttyUSB0` (auto-detected) | USB |
+| Side camera (face tracking) | `/dev/video2` | USB |
+| Top camera (Gemini vision) | `/dev/video4` | USB |
 
-## Essential Commands
-
-```bash
-# One-time: grant port access
-sudo chmod 666 /dev/ttyACM1 /dev/ttyACM2
-
-# Activate environment
-conda activate lerobot && cd ~/lerobot
-
-# Verify GPU (must print AMD Radeon Graphics)
-python3 -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
-
-# Teleoperation (verified working at 16.73ms / 60Hz)
-lerobot-teleoperate \
-  --robot.type=so101_follower --robot.port=/dev/ttyACM2 \
-  --robot.id=my_awesome_follower_arm \
-  --robot.cameras="{ front: {type: opencv, index_or_path: /dev/video4, width: 1920, height: 1080, fps: 30}}" \
-  --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 \
-  --teleop.id=my_awesome_leader_arm --display_data=true
-
-# Run prototype hand-tracking
-python3 ~/lerobot/palm_track.py
-
-# Pull offline models before demo (do once, needs network)
-ollama pull llava && ollama pull llama3.2:3b
-python -c "from kokoro_onnx import Kokoro; Kokoro.download()"
-
-# Discover hardware
-lerobot-find-cameras opencv
-lerobot-find-port
+Calibration files live at:
+```
+~/.cache/huggingface/lerobot/calibration/robots/so101_follower/my_awesome_follower_arm.json
+~/.cache/huggingface/lerobot/calibration/teleoperators/so101_leader/my_awesome_leader_arm.json
 ```
 
-## ROCm Environment Variable (required for iGPU)
+---
+
+## Environment
 
 ```bash
-export HSA_OVERRIDE_GFX_VERSION=11.0.0
+conda activate lerobot          # always required
+export HSA_OVERRIDE_GFX_VERSION=11.0.0   # required for AMD iGPU — already in ~/.bashrc
+sudo chmod 666 /dev/ttyACM1 /dev/ttyACM2 # required after each reboot
 ```
 
-Add to `~/.bashrc` or set in `config.py` via `os.environ`.
+API keys must be set in `~/.bashrc`:
+```bash
+export GEMINI_API_KEY="..."
+```
 
-## Additional Documentation
+---
 
-| File | When to check |
+## Running the Project
+
+**Primary entry point (full system):**
+```bash
+python companion.py
+```
+
+**Simple voice+vision only (no arm):**
+```bash
+python main.py
+```
+
+**Face tracking + OLED eyes only:**
+```bash
+python /home/aup/lerobot/face_track_eyes.py
+```
+
+**Move arm to a saved pose:**
+```bash
+python goto_pose.py home          # move and hold
+python goto_pose.py home --once   # move and release torque
+python goto_pose.py list          # show all saved poses
+```
+
+**Audio/hardware diagnostics:**
+```bash
+python test_audio.py              # test speaker devices
+python /home/aup/lerobot/preview_cameras.py   # preview both cameras
+```
+
+---
+
+## Architecture
+
+### `companion.py` — Main entry point for full system
+
+Three-state machine: `sleeping → tracking → desk_view`
+
+- **sleeping**: Waits for "wake up". OLED shows BORED. Serial port owned by companion.
+- **tracking**: Launches `face_track_eyes.py` as subprocess. OLED controlled by that subprocess. companion.py releases the serial port before launching it, reclaims it after killing it.
+- **desk_view**: arm moves to home pose (held by `goto_pose.py` subprocess), camera captures frame, Gemini analyzes. OLED shows SCANNING. Follow-up answers go directly to `gemini.reply()` — no re-classification, no new snapshot.
+
+**Serial port handoff pattern**: companion.py calls `eyes.disconnect()` before starting face_track_eyes.py, then `eyes.reconnect()` (with `dtr=False` to skip Arduino reset) after killing it.
+
+**Intent routing** (`voice.py`):
+- `knowledge` → answer via `gemini.ask_text()`, no arm movement
+- `tutor` / `identify` → arm moves to home, camera snapshot, full Gemini tutor response
+- `wake` / `idle` / `track` / `clean` → state transitions
+
+**Hardcoded responses** (in companion.py `knowledge` handler):
+- "what is your name" / "who are you" → fixed Sparky intro
+- "running on" / "powered by" / "your cpu" → AMD Ryzen AI response
+
+### `face_track_eyes.py` — Face tracking subprocess (`~/lerobot/`)
+
+PID face tracker with integrated OLED control. Runs as a subprocess of companion.py. On SIGTERM, does NOT run finally cleanup (Python default SIGTERM behavior) — the OS releases the serial port and arm holds last position.
+
+Key arm constants:
+- `SHOULDER_LIFT = -55.0` (fixed)
+- `ELBOW_FLEX = 40.0` (fixed)
+- `WRIST_ROLL = -50.0` (fixed)
+- `shoulder_pan` is the only moving joint, range ±60°
+
+High-confidence lock: when face score > 0.5, arm freezes for 3 seconds (renews each frame the face stays above threshold).
+
+OLED state map: SCANNING → FOUND (1s hold when face spotted) → TRACKING → LOST → back to SCANNING.
+
+Camera frame is rotated 90° **clockwise** (`cv2.ROTATE_90_CLOCKWISE`) before face detection.
+
+### `sparky.py` — TTS
+
+Backend chain: ~~ElevenLabs~~ (disabled — IP flagged) → **Kokoro-ONNX** (primary) → espeak-ng (fallback).
+
+- Voices file: `voices/voices-v1.0.bin` (54 voices, numpy pickled dict)
+- Model file: `kokoro.onnx`
+- Speaker device: `7` (amd-soundwire hw:3,2)
+- All audio is converted mono→stereo before playback (device requires 2ch)
+
+### `gemini_vision.py` — Vision-language AI
+
+- `tutor(question, image)` — always captures a fresh snapshot; pass `image=` to skip capture
+- `reply(answer)` — conversational follow-up, no snapshot, uses `conversation_history`
+- `ask_text(question)` — pure text, no image, no history (for `knowledge` intents)
+- `identify()` — scan desk, no question context
+- Conversation history: `deque(maxlen=6)` — last 3 exchanges
+
+### `voice.py` — STT + Intent
+
+- Mic device: `8` (amd-soundwire hw:3,4)
+- Record rate: 48000 Hz → resampled to 16000 Hz for Whisper
+- Returns dict with `mode`, `target`, and `transcript` keys
+- `transcript` = raw Whisper output (used for follow-up replies, bypasses intent classification)
+
+### `goto_pose.py` — Arm pose control
+
+Pose presets stored in `pose_presets.json`. Smoothly interpolates over 60 steps (~1.2s).
+- `--once`: move then disconnect (releases torque, arm falls if unsupported)
+- Without `--once`: holds pose in loop until Ctrl+C (used by companion.py to keep torque during Gemini analysis)
+
+### `companion.py` `EyesController`
+
+Manages serial lifecycle. Key methods:
+- `connect()`: scans ports, flushes startup buffer with `reset_input_buffer()` before ACK check
+- `disconnect()`: closes port so face_track_eyes.py can open it
+- `reconnect()`: reopens with `dtr=False` to avoid Arduino reset delay
+
+---
+
+## OLED Emotions (Arduino Nano)
+
+Commands sent as plain strings over serial at 115200 baud. Arduino ACKs each with `ACK:<command>`.
+
+| Command | Expression |
 |---|---|
-| `desk_companion_final.md` | Hardware pinouts, power wiring, mode trigger phrases, camera routing |
-| `PROGRESS.md` | Current hackathon status, what's working, what's pending |
-| `TROUBLESHOOTING.md` | Device port issues, calibration cache location, quick-start steps |
-| `.claude/docs/architectural_patterns.md` | Module responsibilities, fallback chains, state machine design |
-| `.claude/docs/lerobot_reference.md` | Full LeRobot symbol index: every class, function, constant with file:line |
+| `SCANNING` | Pupils slide left/right |
+| `FOUND` | Eyes grow wide |
+| `TRACKING` | Happy squint + smile |
+| `LOST` | Darting eyes + floating `?` |
+| `BORED` | Droopy eyelids + wavy mouth |
+| `NEUTRAL` | Gentle blink |
+
+Sketch location: `arduino/eyes_sketch/eyes_sketch.ino`
+
+---
+
+## Known Quirks
+
+- **Camera warmup**: After face_track_eyes.py releases `/dev/video2`, capture_snapshot() flushes 20 frames before reading to avoid black/stale frames.
+- **kokoro-onnx v0.5.0 bug**: `speed` input was `int32` instead of `float32` — patched directly in the installed package at `kokoro_onnx/__init__.py`.
+- **voices file format**: `voices-v1.0.bin` is a numpy pickled dict requiring `allow_pickle=True` — also patched in the installed package.
+- **DESK_TIMEOUT**: 12 seconds. The "going back to tracking" warning only fires if the user has not yet pressed spacebar.
+- **face_track_pid.py** exists as a legacy version without OLED — use `face_track_eyes.py` for all runs via companion.
