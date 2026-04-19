@@ -59,8 +59,10 @@ class VoiceModule:
         transcript = self._transcribe(audio)
         print(f"[Voice] Heard: \"{transcript}\"")
         if not transcript.strip():
-            return {"mode": "idle", "target": ""}
-        return self._classify_intent(transcript)
+            return {"mode": "idle", "target": "", "transcript": ""}
+        intent = self._classify_intent(transcript)
+        intent["transcript"] = transcript
+        return intent
 
     def _disable_echo(self):
         fd = sys.stdin.fileno()

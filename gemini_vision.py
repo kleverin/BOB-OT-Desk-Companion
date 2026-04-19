@@ -43,10 +43,14 @@ class GeminiVision:
         if self._cam is not None:
             return self._cam.snapshot()
         cap = cv2.VideoCapture(self.top_camera_index, cv2.CAP_V4L2)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        for _ in range(20):  # flush stale/black frames — camera needs warmup after handoff
+            cap.read()
         ret, frame = cap.read()
         cap.release()
         if not ret:
-            raise RuntimeError("Could not capture from top camera")
+            raise RuntimeError("Could not capture from camera")
         return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
     def _image_to_part(self, image: Image.Image) -> types.Part:
@@ -125,30 +129,26 @@ class GeminiVision:
             yield result
             return
 
-    def tutor(self, question: str = ""):
+    def tutor(self, question: str = "", image: Image.Image | None = None):
         prompt = TUTOR_PROMPT
         if question:
             prompt += f"\n\nThe child is asking: {question}"
-        is_followup = len(self.conversation_history) > 0
-        needs_image = not is_followup and not question  # capture only on first visual request
-        image = self.capture_snapshot() if needs_image else None
-        if image is not None:
-            image.save("/tmp/sparky_sees.jpg")
-            print("[GeminiVision] Snapshot saved to /tmp/sparky_sees.jpg")
+        if image is None:
+            image = self.capture_snapshot()
+        image.save("/tmp/sparky_sees.jpg")
+        print("[GeminiVision] Snapshot saved to /tmp/sparky_sees.jpg")
         try:
             if self.gemini_available:
                 yield from self._stream_gemini(prompt, image)
             else:
                 print("[GeminiVision] Using LLaVA for tutor...")
                 result = self._ask_llava_fallback(prompt)
-                print(f"[GeminiVision] LLaVA tutor said: {result[:80]}...")
                 for sentence in result.split(". "):
                     if sentence.strip():
                         yield sentence.strip() + "."
         except Exception as e:
             print(f"[GeminiVision] tutor failed: {e}")
             if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                print("[GeminiVision] Quota exceeded — switching to LLaVA for this session")
                 self.gemini_available = False
                 result = self._ask_llava_fallback(prompt)
                 for sentence in result.split(". "):
@@ -156,6 +156,17 @@ class GeminiVision:
                         yield sentence.strip() + "."
             else:
                 yield "Hmm, let me think about that. Can you show me again?"
+
+    def reply(self, answer: str):
+        """Send a conversational follow-up to Gemini without taking a new snapshot."""
+        try:
+            if self.gemini_available:
+                yield from self._stream_gemini(answer, None)
+            else:
+                yield "Keep trying, you're doing great!"
+        except Exception as e:
+            print(f"[GeminiVision] reply failed: {e}")
+            yield "Keep going, you've got this!"
 
     def clear_history(self):
         self.conversation_history.clear()

@@ -36,7 +36,7 @@ def _generate_thinking_beep(sr: int = 22050) -> np.ndarray:
     t = np.linspace(0, 0.12, int(sr * 0.12))
     return (np.sin(2 * np.pi * 660 * t) * np.exp(-t * 15) * 0.25).astype(np.float32)
 
-SPEAKER_DEVICE = 5  # amd-soundwire hw:1,2 — laptop speaker
+SPEAKER_DEVICE = 7  # amd-soundwire hw:3,2 — laptop speaker
 
 def play_audio(audio: np.ndarray, sample_rate: int = 22050):
     audio = audio.squeeze()  # remove batch dim if present
@@ -54,7 +54,6 @@ class SparkyVoice:
     """
 
     SAMPLE_RATE = 48000
-    ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"  # Aria
 
     def __init__(self):
         self.startup_chime = _generate_startup_chime(self.SAMPLE_RATE)
@@ -63,14 +62,6 @@ class SparkyVoice:
         self._thinking_thread = None
 
         self.elevenlabs_available = False
-        try:
-            from elevenlabs.client import ElevenLabs
-            self._el_client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"])
-            self._el_client.voices.get_all()
-            self.elevenlabs_available = True
-            print("[Sparky] ElevenLabs voice ready ✓")
-        except Exception as e:
-            print(f"[Sparky] ElevenLabs unavailable ({e}), trying Kokoro...")
 
         self.kokoro_available = False
         try:
@@ -119,23 +110,12 @@ class SparkyVoice:
         if not text.strip():
             return
         try:
-            if self.elevenlabs_available:
-                self._say_elevenlabs(text)
-            elif self.kokoro_available:
+            if self.kokoro_available:
                 self._say_kokoro(text)
             else:
                 self._say_piper(text)
-        except Exception:
-            if self.elevenlabs_available:
-                print("[Sparky] ElevenLabs failed — disabling for this session.")
-                self.elevenlabs_available = False
-            try:
-                if self.kokoro_available:
-                    self._say_kokoro(text)
-                else:
-                    self._say_piper(text)
-            except Exception as e2:
-                print(f"[Sparky] All TTS failed: {e2}")
+        except Exception as e:
+            print(f"[Sparky] TTS failed: {e}")
 
     def say_streamed(self, sentence_generator):
         """
@@ -148,29 +128,6 @@ class SparkyVoice:
                 self.stop_thinking()
                 first = False
             self.say(sentence)
-
-    def _say_elevenlabs(self, text: str):
-        from elevenlabs import VoiceSettings
-        audio_bytes = self._el_client.text_to_speech.convert(
-            voice_id=self.ELEVENLABS_VOICE_ID,
-            text=text,
-            model_id="eleven_turbo_v2_5",
-            voice_settings=VoiceSettings(
-                stability=0.45,
-                similarity_boost=0.80,
-                style=0.25,
-                use_speaker_boost=True,
-            ),
-            output_format="pcm_22050",
-        )
-        audio = np.frombuffer(b"".join(audio_bytes), dtype=np.int16).astype(np.float32) / 32768.0
-        # upsample 22050 → 48000 for laptop speaker
-        from scipy.signal import resample_poly
-        from math import gcd
-        g = gcd(48000, 22050)
-        audio = resample_poly(audio, 48000 // g, 22050 // g).astype(np.float32)
-        audio = apply_robot_effect(audio, self.SAMPLE_RATE)
-        play_audio(audio, self.SAMPLE_RATE)
 
     def _say_kokoro(self, text: str):
         samples, sr = self._kokoro.create(text, voice="af_sky", speed=0.95, lang="en-us")
