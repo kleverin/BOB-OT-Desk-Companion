@@ -20,7 +20,7 @@ When shown a math problem, homework question, drawing, or any object:
 - Always end with an encouraging phrase like "You've got this!" or "Great question!"
 - If it is a math problem, walk through each step out loud like a teacher would."""
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-2.5-flash"
 
 
 class GeminiVision:
@@ -119,16 +119,19 @@ class GeminiVision:
             if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
                 print("[GeminiVision] Quota exceeded — switching to LLaVA for this session")
                 self.gemini_available = False
-                yield self._ask_llava_fallback(IDENTIFY_PROMPT)
-            else:
-                yield "I can see some objects on the desk, but I'm having trouble right now."
+            print("[GeminiVision] Using LLaVA fallback for identify...")
+            result = self._ask_llava_fallback(IDENTIFY_PROMPT)
+            print(f"[GeminiVision] LLaVA said: {result[:80]}...")
+            yield result
+            return
 
     def tutor(self, question: str = ""):
         prompt = TUTOR_PROMPT
         if question:
             prompt += f"\n\nThe child is asking: {question}"
         is_followup = len(self.conversation_history) > 0
-        image = None if is_followup else self.capture_snapshot()
+        needs_image = not is_followup and not question  # capture only on first visual request
+        image = self.capture_snapshot() if needs_image else None
         if image is not None:
             image.save("/tmp/sparky_sees.jpg")
             print("[GeminiVision] Snapshot saved to /tmp/sparky_sees.jpg")
@@ -136,7 +139,9 @@ class GeminiVision:
             if self.gemini_available:
                 yield from self._stream_gemini(prompt, image)
             else:
+                print("[GeminiVision] Using LLaVA for tutor...")
                 result = self._ask_llava_fallback(prompt)
+                print(f"[GeminiVision] LLaVA tutor said: {result[:80]}...")
                 for sentence in result.split(". "):
                     if sentence.strip():
                         yield sentence.strip() + "."

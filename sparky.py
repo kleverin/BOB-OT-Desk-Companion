@@ -93,7 +93,10 @@ class SparkyVoice:
         self._thinking_active = True
         def _pulse():
             while self._thinking_active:
-                play_audio(self.thinking_beep, self.SAMPLE_RATE)
+                try:
+                    play_audio(self.thinking_beep, self.SAMPLE_RATE)
+                except Exception:
+                    pass
                 time.sleep(0.55)
         self._thinking_thread = threading.Thread(target=_pulse, daemon=True)
         self._thinking_thread.start()
