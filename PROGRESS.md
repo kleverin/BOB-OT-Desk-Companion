@@ -112,9 +112,9 @@ Script location: `~/lerobot/palm_track.py`
 - [x] Ollama LLaVA fallback pull
 
 ### Track C — Vision
-- [ ] `vision.py` — MediaPipe face detection on side camera
-- [ ] YOLO11n `objects_present_in_pickup_zone()`
-- [ ] VisionModule background thread
+- [x] `vision.py` — MediaPipe face detection on side camera
+- [x] YOLO11n `objects_present_in_pickup_zone()`
+- [x] VisionModule background thread
 
 ### Track D — Eyes
 - [ ] Arduino wired to SSD1306 OLED

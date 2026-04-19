@@ -39,6 +39,9 @@ def _generate_thinking_beep(sr: int = 22050) -> np.ndarray:
 SPEAKER_DEVICE = 5  # amd-soundwire hw:1,2 — laptop speaker
 
 def play_audio(audio: np.ndarray, sample_rate: int = 22050):
+    audio = audio.squeeze()  # remove batch dim if present
+    if audio.ndim == 1:
+        audio = np.stack([audio, audio], axis=1)  # mono → stereo for hw:3,0
     sd.play(audio, samplerate=sample_rate, device=SPEAKER_DEVICE)
     sd.wait()
 
@@ -70,14 +73,18 @@ class SparkyVoice:
             print(f"[Sparky] ElevenLabs unavailable ({e}), trying Kokoro...")
 
         self.kokoro_available = False
-        if not self.elevenlabs_available:
-            try:
-                from kokoro_onnx import Kokoro
-                self._kokoro = Kokoro("kokoro.onnx", "voices/af_sky.bin")
-                self.kokoro_available = True
-                print("[Sparky] Kokoro TTS ready ✓")
-            except Exception as e:
-                print(f"[Sparky] Kokoro unavailable ({e}), falling back to Piper.")
+        try:
+            from kokoro_onnx import Kokoro
+            import os as _os
+            _model_dir = _os.path.dirname(_os.path.abspath(__file__))
+            self._kokoro = Kokoro(
+                _os.path.join(_model_dir, "kokoro.onnx"),
+                _os.path.join(_model_dir, "voices", "voices-v1.0.bin"),
+            )
+            self.kokoro_available = True
+            print("[Sparky] Kokoro TTS ready ✓")
+        except Exception as e:
+            print(f"[Sparky] Kokoro unavailable ({e}), falling back to Piper.")
 
         if not self.elevenlabs_available and not self.kokoro_available:
             print("[Sparky] Using Piper TTS (last resort).")
@@ -86,7 +93,7 @@ class SparkyVoice:
         """Play startup chime then introduce Sparky. Call once at boot."""
         play_audio(self.startup_chime, self.SAMPLE_RATE)
         time.sleep(0.1)
-        self.say("Hello! I'm Sparky. I'm ready to help!")
+        self.say("Hey guys, how is it going?")
 
     def start_thinking(self):
         """Begin pulsing thinking beeps. Call when Gemini starts processing."""
@@ -118,12 +125,17 @@ class SparkyVoice:
                 self._say_kokoro(text)
             else:
                 self._say_piper(text)
-        except Exception as e:
-            print(f"[Sparky] TTS error: {e} — trying Piper fallback")
+        except Exception:
+            if self.elevenlabs_available:
+                print("[Sparky] ElevenLabs failed — disabling for this session.")
+                self.elevenlabs_available = False
             try:
-                self._say_piper(text)
-            except Exception:
-                pass
+                if self.kokoro_available:
+                    self._say_kokoro(text)
+                else:
+                    self._say_piper(text)
+            except Exception as e2:
+                print(f"[Sparky] All TTS failed: {e2}")
 
     def say_streamed(self, sentence_generator):
         """
@@ -162,7 +174,7 @@ class SparkyVoice:
 
     def _say_kokoro(self, text: str):
         samples, sr = self._kokoro.create(text, voice="af_sky", speed=0.95, lang="en-us")
-        audio = np.array(samples, dtype=np.float32)
+        audio = np.array(samples, dtype=np.float32).squeeze()
         if sr != self.SAMPLE_RATE:
             from scipy.signal import resample_poly
             from math import gcd
@@ -172,15 +184,8 @@ class SparkyVoice:
         play_audio(audio, self.SAMPLE_RATE)
 
     def _say_piper(self, text: str):
-        import subprocess, tempfile
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-            tmp_path = f.name
-        subprocess.run([
-            "piper", "--model", "en_US-amy-medium",
-            "--length-scale", "1.15",
-            "--output_file", tmp_path,
-        ], input=text.encode(), capture_output=True)
-        audio, sr = sf.read(tmp_path)
-        audio = apply_robot_effect(audio.astype(np.float32), sr)
-        play_audio(audio, sr)
-        os.unlink(tmp_path)
+        import subprocess
+        subprocess.run(
+            ["espeak-ng", "-s", "145", "-p", "60", "-a", "200", text],
+            check=True,
+        )

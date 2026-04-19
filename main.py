@@ -1,6 +1,4 @@
-import threading
 import cv2
-import numpy as np
 from PIL import Image
 from config import GEMINI_API_KEY, CAMERA_TOP
 from sparky import SparkyVoice
@@ -9,42 +7,27 @@ from voice import VoiceModule
 
 
 class SharedCamera:
-    """Opens the camera once; preview thread reads continuously; gemini grabs latest frame."""
+    """Opens the camera on demand per snapshot — avoids background thread segfaults."""
 
     def __init__(self, index: int):
-        self._cap = cv2.VideoCapture(index)
-        if not self._cap.isOpened():
-            raise RuntimeError(f"Cannot open camera index {index}")
-        self._lock = threading.Lock()
-        self._latest = None
-
-    def read_raw(self):
-        with self._lock:
-            ret, frame = self._cap.read()
-            if ret:
-                self._latest = frame
-            return ret, frame
+        self.index = index
 
     def snapshot(self) -> Image.Image:
-        with self._lock:
-            if self._latest is None:
-                raise RuntimeError("No frame captured yet")
-            frame = self._latest.copy()
+        cap = cv2.VideoCapture(self.index, cv2.CAP_V4L2)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        if not cap.isOpened():
+            raise RuntimeError(f"Cannot open camera {self.index}")
+        for _ in range(5):  # flush stale frames
+            cap.read()
+        ret, frame = cap.read()
+        cap.release()
+        if not ret:
+            raise RuntimeError("Camera capture failed")
         return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
     def release(self):
-        self._cap.release()
-
-
-def _camera_preview(cam: SharedCamera, stop_event: threading.Event):
-    while not stop_event.is_set():
-        ret, frame = cam.read_raw()
-        if not ret:
-            continue
-        cv2.imshow("Sparky's View", frame)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-    cv2.destroyAllWindows()
+        pass
 
 
 class ModeSwitcher:
@@ -56,14 +39,7 @@ class ModeSwitcher:
         self.sparky = SparkyVoice()
         self.gemini = GeminiVision(api_key=GEMINI_API_KEY, cam=self._cam)
         self.voice = VoiceModule()
-        self._preview_stop = threading.Event()
-        self._preview_thread = threading.Thread(
-            target=_camera_preview, args=(self._cam, self._preview_stop), daemon=True
-        )
-
-
     def run(self):
-        self._preview_thread.start()
         self.sparky.startup()
         print("[Sparky] Running. Hold SPACE to speak. Ctrl+C to quit.")
         while True:
@@ -71,7 +47,6 @@ class ModeSwitcher:
                 intent = self.voice.listen_once()
                 self._handle(intent)
             except KeyboardInterrupt:
-                self._preview_stop.set()
                 self._cam.release()
                 try:
                     self.sparky.say("Goodbye!")
