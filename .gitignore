@@ -1,0 +1,35 @@
+# Claude Code files
+.claude/
+CLAUDE.md
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Large model files
+*.onnx
+voices/
+
+# Outputs
+outputs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# API keys / secrets
+.env
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
