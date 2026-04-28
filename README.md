@@ -2,6 +2,8 @@
 
 > 🏆 **2nd Prize — AMD Track, StarkHacks Hackathon**
 
+![Sparky](Media/Sparky.jpeg)
+
 A voice-controlled robotic desk companion for children, built on a **WowRobo SO-101** arm. Sparky tracks faces, tutors kids by looking at their homework through a camera, and responds to voice commands. Built for the **StarkHacks hackathon**, the worlds largest hardware hackathon.
 
 ---
